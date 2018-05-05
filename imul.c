@@ -7,7 +7,7 @@
 #define NO_PARAM 0
 #define HAS_XX 1
 #define HAS_SS (1<<1)
-#define HAS_DD (1<<2)*/
+#define HAS_DD (1<<2)
 #define fir_8b (x & 0xff)
 #define sec_8b ((x>>8) & 0xff)
 
@@ -19,13 +19,6 @@ typedef word adr;
 
 byte mem[56*1024];
 word reg[8];
-word nn;
-
-/*struct SSDD
-{
-    word val;
-    adr a;
-} ss, dd;*/
 
 void b_write(adr a, byte x)
 {
@@ -74,6 +67,21 @@ void load_file(char * f)
     free(a);
     fclose(f_in);
 }
+
+struct Command
+{
+    word opcode;
+    word mask;
+    const char * name;
+    void (*do_func());
+    byte param;
+};
+
+struct SSDD
+{
+    word val;
+    adr a;
+} ss, dd;
 
 void do_halt()//??
 {
