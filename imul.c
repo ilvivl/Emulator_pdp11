@@ -1,14 +1,19 @@
 #include<stdio.h>
 #include<stdarg.h> //для va_
+#include<assert.h>
+#include<stdlib.h>
 
 #define pc reg[7]
 #define NO_PARAM 0
 #define HAS_XX 1
 #define HAS_SS (1<<1)
-#define HAS_DD (1<<2)
+#define HAS_DD (1<<2)*/
+#define fir_8b (x & 0xff)
+#define sec_8b ((x>>8) & 0xff)
 
 
-typedef char byte;
+
+typedef unsigned char byte;
 typedef int word;
 typedef word adr;
 
@@ -16,11 +21,11 @@ byte mem[56*1024];
 word reg[8];
 word nn;
 
-struct SSDD
+/*struct SSDD
 {
     word val;
     adr a;
-} ss, dd;
+} ss, dd;*/
 
 void b_write(adr a, byte x)
 {
@@ -34,8 +39,40 @@ byte b_read(adr a)
 
 void w_write(adr a, word x)//???
 {
-    mem[2] = (byte)(x & 0xff);
-    mem[3] = (byte)((x>>8) & 0xff);
+    mem[a] = (byte)fir_8b;
+    mem[a + 1] = (byte)sec_8b;
+}
+
+word w_read(adr a)
+{
+    assert (a % 2 == 0);
+    return (((word)mem[a + 1])<<8) | (word)mem[a];//
+}
+
+void load_file(char * f)
+{
+    FILE *f_in = NULL
+    f_in = fopen(f, "r");
+    if(f_in == NULL)
+    {
+        perror(f);
+        exit(1);
+    }
+    adr ad;
+    int n, i;
+    byte * a;
+    while(fscanf(f_in, "%x", &ad) > 0)
+    {
+        fscanf(f_in, "%x", &n);
+        a = malloc(n * sizeof(a*));
+        for(i = 0; i < n; i++)
+        {
+            fscanf(f_in, "%x", &a[i]);
+            b_write(ad + i, a[i]);
+        }
+    }
+    free(a);
+    fclose(f_in);
 }
 
 void do_halt()//??
@@ -51,7 +88,7 @@ void do_add()
 
 void do_move()
 {
-        write(dd.a) =ss.val;
+        write(dd.a) = ss.val;
 
 }
 
