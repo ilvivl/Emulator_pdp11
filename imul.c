@@ -1,13 +1,15 @@
 #include<stdio.h>
-#include<stdarg.h> //для va_
+#include<stdarg.h> //РґР»СЏ va_
 #include<assert.h>
 #include<stdlib.h>
 
 #define pc reg[7]
+
 #define NO_PARAM 0
 #define HAS_XX 1
 #define HAS_SS (1<<1)
 #define HAS_DD (1<<2)
+
 #define fir_8b (x & 0xff)
 #define sec_8b ((x>>8) & 0xff)
 
@@ -44,7 +46,7 @@ word w_read(adr a)
 
 void load_file(char * f)
 {
-    FILE *f_in = NULL
+    FILE *f_in = NULL;
     f_in = fopen(f, "r");
     if(f_in == NULL)
     {
@@ -57,7 +59,7 @@ void load_file(char * f)
     while(fscanf(f_in, "%x", &ad) > 0)
     {
         fscanf(f_in, "%x", &n);
-        a = malloc(n * sizeof(a*));
+        a = malloc(n * sizeof(*a));
         for(i = 0; i < n; i++)
         {
             fscanf(f_in, "%x", &a[i]);
@@ -70,10 +72,10 @@ void load_file(char * f)
 
 struct Command
 {
-    word opcode;
+    word opercode;
     word mask;
     const char * name;
-    void (*do_func());
+    //void (*do_func());
     byte param;
 };
 
@@ -83,7 +85,33 @@ struct SSDD
     adr a;
 } ss, dd;
 
-void do_halt()//??
+int main(int argc, char * argv[])
+{
+    printf("the 3 argum is %s\n", argv[2]);
+    printf("there are %d argc\n", argc);
+    load_file(argv[argc - 1]);
+    mem_dump(0x200, 0xc);
+    reg_print();
+    return 0;
+}
+
+void mem_dump(adr adr_st, int n)
+{
+    printf("\nMemory dumping\n");
+    int i;
+    for(i = adr_st; i < adr_st + n; i+=2)
+        printf("mem[%d] : %07o\n", i, w_read(i));
+}
+
+void reg_print()
+{
+    int i;
+    printf("\nRegisters typing\n");
+    for(i = 0; i < 8; i++)
+        printf("reg[%d] = %07o\n", i, reg[i]);
+}
+
+/*void do_halt()//??
 {
     printf("THE END\n");
     exir(0);
@@ -144,3 +172,4 @@ vprintf(format, ap);
 va_end(ap);
 }
 return 0;
+*/
