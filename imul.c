@@ -6,13 +6,13 @@
 #define pc reg[7]
 
 #define NO_PARAM 0
-#define HAS_XX 1
-#define HAS_SS (1<<1)
-#define HAS_DD (1<<2)
+#define HAS_SS 1
+#define HAS_DD (1<<1)
+#define HAS_NN (1<<2)
+#define HAS_XX (1<<3)
 
 #define fir_8b (x & 0xff)
 #define sec_8b ((x>>8) & 0xff)
-
 
 
 typedef unsigned char byte;
@@ -79,7 +79,15 @@ struct Command
     byte param;
 };
 
-struct SSDD
+/*Command[] =
+{
+    {0010000, 0170000, "move", do_move, HAS_SS | HAS_DD},
+    {0060000, 0170000, "add", do_add, HAS_SS | HAS_DD},
+    {0000000, 0177777, "halt", do_halt, NO_PARAM},
+    {0000000, 0170000, "unknown", do_unknown, NO_PARAM},
+}*/
+
+struct VAL_ADR
 {
     word val;
     adr a;
@@ -129,25 +137,96 @@ void do_move()
 }
 
 void do_unknown() {}
+*/
 
-struct Command
+struct VAL_ADR get_mode(word w)
 {
-    word opcode;
-    word mask;
-    const char * name;
-    void (*do_func());
-    byte param;
-};
+    struct VAL_ADR res;
+    word nn = w & 7; // fir_3b
+    word mode = (w>>3) & 7;// sec_3b
+    switch(mode)
+    {
+        case 0:      //регистр содержит искомое значение
+            res.a = nn;
+            res.val = reg[nn];
+            printf("reg[%d]", nn);
+            break;
+        case 1:            //регистр содержит адрес ячейки памяти, где лежит значение
+            res.a = reg[nn];
+            if(b)
+            {
+                res.val = b_read(res.a);
+                printf("reg[%d], b", nn);
+            }
+            else
+            {
+                res.val = w_read(res.a);
+                printf("reg[%d], w", nn);
+            }
+            break;
+        case 2:          //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
+            res.a = reg[nn];
+            if(b && nn < 6)
+            {
+                res.val = b_read(res.a);
+                reg[nn]++;
+                printf("reg[%d], b", nn);
+            }
+            else
+            {
+                res.val = w_read(res.a);
+                reg[nn]+=2;
+                printf("reg[%d], w", nn);
+            }
+            break;
+        case 3:              //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
+            res.a = w_read(reg[nn]);
+            if(b)
+            {
+                res.val = b_read(res.a);
+                printf("reg[%d], b", nn);
+            }
+            else
+            {
+                res.val = w_read(res.a);
+                printf("reg[%d], w", nn);
+            }
+            reg[nn]+=2;
+            break;
+        case 4:           //уменьшаем значение регистра, интерпретируем его как адрес и находим значение
+            if(b && nn < 6)
+            {
+                reg[nn]--;
+                res.a = reg[nn];
+                res.val = b_read(res.a);
+                printf("reg[%d], b", nn);
+            }
+            else
+            {
+                reg[nn]-=2;
+                res.a = reg[nn];
+                res.val = w_read(res.a);
+                printf("reg[%d], w", nn);
+            }
+            break;
+        case 5:           //уменьшает значение регистра на 2, который содержит адрес ячейки памяти, где лежит значение, значение регистра увелич
+            reg[nn]-=2;
+            res.a = w_read(reg[nn]);
+            if(b && nn < 6)
+            {
+                res.val = b_read(res.a);
+                printf("reg[%d], b", nn);
+            }
+            else
+            {
+                res.val = w_read(res.a);
+                printf("reg[%d], w", nn);
+            }
+            break;
+    }
 
-Command[] =
-{
-    {0010000, 0170000, "move", do_move, HAS_SS | HAS_DD},
-    {0060000, 0170000, "add", do_add, HAS_SS | HAS_DD},
-    {0000000, 0177777, "halt", do_halt, NO_PARAM},
-    {0000000, 0170000, "unknown", do_unknown, NO_PARAM},
 }
-
-void run()
+/*void run()
 {
     word pc = 0100;
     while(1)
