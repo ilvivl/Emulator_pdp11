@@ -8,10 +8,10 @@
 #define NO_PARAM 0
 #define HAS_SS 1
 #define HAS_DD (1<<1)
-#define HAS_NN (1<<2)
-#define HAS_XX (1<<3)
-#define HAS_R4 (1<<4)
-#define HAS_R6 (1<<5)
+#define HAS_NN (1<<3)
+//#define HAS_XX (1<<5)
+#define HAS_R (1<<4)
+//#define HAS_R6 (1<<2)
 
 #define fir_8b(x) (x & 0xff)
 #define sec_8b(x) ((x>>8) & 0xff)
@@ -24,10 +24,14 @@ byte mem[56*1024];
 word reg[8];
 
 int b;
+word nn, rr;
 
 void b_write(adr a, byte x)
 {
-    mem[a] = x;
+    if(a < 8)
+        reg[a] = (x & 0xff);//почему
+    else
+        mem[a] = (x & 0xFf);
 }
 
 byte b_read(adr a)
@@ -38,7 +42,7 @@ byte b_read(adr a)
 void w_write(adr a, word x)//???
 {
     if(a < 8)
-        reg[a] = x;//почему
+        reg[a] = x & 0xff;//почему
     else
     {
         assert(!(a % 2));
@@ -85,9 +89,25 @@ struct VAL_ADR
     adr a;
 } ss, dd;
 
-void sob()
+void do_move_b()
 {
-    pc-=2;
+    b_write(dd.a, ss.val);
+}
+
+void do_clr()
+{
+    w_write(dd.a, 0);
+}
+
+void do_sob()
+{
+    reg[rr]--;
+    if(reg[rr] != 0)
+    {
+        //reg[rr]--;
+        pc = pc - 2*nn;
+    }
+    printf("R%d ", rr);
 }
 void do_halt()//??
 {
@@ -98,12 +118,12 @@ void do_halt()//??
 
 void do_add()
 {
-    w_write(dd.a, dd.val + ss.val);
+    w_write(dd.a, (dd.val + ss.val) & 0xffff);
 }
 
 void do_move()
 {
-    w_write(dd.a, ss.val);
+    w_write(dd.a, (ss.val & 0xffff));
 }
 
 void do_unknown() {}
@@ -121,10 +141,13 @@ struct Command
 
 cmds[] =
 {
-    {0010000, 0170000, "move", do_move, HAS_SS | HAS_DD},
-    {0060000, 0170000, "add", do_add, HAS_SS | HAS_DD},
-    {0000000, 0177777, "halt", do_halt, NO_PARAM},
-    {0000000, 0170000, "unknown", do_unknown, NO_PARAM},
+    {0010000, 0170000, "move",      do_move,    HAS_SS | HAS_DD},
+    {0060000, 0170000, "add",       do_add,     HAS_SS | HAS_DD},
+    {0000000, 0177777, "halt",      do_halt,    NO_PARAM},
+    {0000000, 0170000, "unknown",   do_unknown, NO_PARAM},
+    {0077000, 0177000, "sob",       do_sob,     HAS_R | HAS_NN},
+	{0005000, 0177700, "clr",       do_clr,     HAS_DD},
+	{0110000, 0170000, "movb", 	    do_move_b,    HAS_SS | HAS_DD},
 };
 
 int main(int argc, char * argv[])
@@ -184,7 +207,7 @@ struct VAL_ADR get_mode(word w)
             break;
         case 2:          //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
             res.a = reg[nn];
-            if(b && (reg[nn] < 6))
+            if(b && (nn < 6))
             {
                 res.val = b_read(res.a);
                 reg[nn]++;
@@ -257,7 +280,7 @@ void run()
     {
         word w = w_read(pc);// & 0xffff;// исправитть
         b = (w>>15);
-        printf("mem[%d] : %07o: %07o ",pc, pc, w);
+        printf("mem[%d] : %07o : %07o ",pc, pc, w);
         pc+=2;
         int i;
         for(i = 0; i < sizeof(cmds)/sizeof(cmds[0]); i++)
@@ -269,7 +292,10 @@ void run()
                     ss = get_mode(w>>6);
                 if(cmds[i].param & HAS_DD)
                     dd = get_mode(w);
-
+                if(cmds[i].param & HAS_NN)
+					nn = w & 0x3f;
+                if(cmds[i].param & HAS_R)
+                    rr = (w>>6) & 7;
                 cmds[i].do_func();
                 //reg_print();
                 break;
