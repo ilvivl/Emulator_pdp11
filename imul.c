@@ -10,10 +10,11 @@
 #define HAS_DD (1<<1)
 #define HAS_NN (1<<2)
 #define HAS_XX (1<<3)
+#define HAS_R4 (1<<4)
+#define HAS_R6 (1<<5)
 
-#define fir_8b (x & 0xff)
-#define sec_8b ((x>>8) & 0xff)
-
+#define fir_8b(x) (x & 0xff)
+#define sec_8b(x) ((x>>8) & 0xff)
 
 typedef unsigned char byte;
 typedef int word;
@@ -21,6 +22,8 @@ typedef word adr;
 
 byte mem[56*1024];
 word reg[8];
+
+int b;
 
 void b_write(adr a, byte x)
 {
@@ -34,8 +37,14 @@ byte b_read(adr a)
 
 void w_write(adr a, word x)//???
 {
-    mem[a] = (byte)fir_8b;
-    mem[a + 1] = (byte)sec_8b;
+    if(a < 8)
+        reg[a] = x;//почему
+    else
+    {
+        assert(!(a % 2));
+        mem[a] = (byte)fir_8b(x);
+        mem[a + 1] = (byte)sec_8b(x);
+    }
 }
 
 word w_read(adr a)
@@ -70,36 +79,64 @@ void load_file(char * f)
     fclose(f_in);
 }
 
-struct Command
-{
-    word opercode;
-    word mask;
-    const char * name;
-    //void (*do_func());
-    byte param;
-};
-
-/*Command[] =
-{
-    {0010000, 0170000, "move", do_move, HAS_SS | HAS_DD},
-    {0060000, 0170000, "add", do_add, HAS_SS | HAS_DD},
-    {0000000, 0177777, "halt", do_halt, NO_PARAM},
-    {0000000, 0170000, "unknown", do_unknown, NO_PARAM},
-}*/
-
 struct VAL_ADR
 {
     word val;
     adr a;
 } ss, dd;
 
+void sob()
+{
+    pc-=2;
+}
+void do_halt()//??
+{
+    printf("\nTHE END\n");
+    reg_print();
+    exit(0);
+}
+
+void do_add()
+{
+    w_write(dd.a, dd.val + ss.val);
+}
+
+void do_move()
+{
+    w_write(dd.a, ss.val);
+}
+
+void do_unknown() {}
+
+
+
+struct Command
+{
+    word opcode;
+    word mask;
+    const char * name;
+    void (*do_func)();
+    byte param;
+}
+
+cmds[] =
+{
+    {0010000, 0170000, "move", do_move, HAS_SS | HAS_DD},
+    {0060000, 0170000, "add", do_add, HAS_SS | HAS_DD},
+    {0000000, 0177777, "halt", do_halt, NO_PARAM},
+    {0000000, 0170000, "unknown", do_unknown, NO_PARAM},
+};
+
 int main(int argc, char * argv[])
 {
-    printf("the 3 argum is %s\n", argv[2]);
+    printf("\nthe third argum is %s\n", argv[2]);
     printf("there are %d argc\n", argc);
     load_file(argv[argc - 1]);
     mem_dump(0x200, 0xc);
     reg_print();
+    run();
+    reg_print();
+    mem_dump(0x200, 0xc);
     return 0;
 }
 
@@ -108,7 +145,7 @@ void mem_dump(adr adr_st, int n)
     printf("\nMemory dumping\n");
     int i;
     for(i = adr_st; i < adr_st + n; i+=2)
-        printf("mem[%d] : %07o\n", i, w_read(i));
+        printf("mem[%d] : %07o : %07o\n", i, i, w_read(i));
 }
 
 void reg_print()
@@ -119,25 +156,6 @@ void reg_print()
         printf("reg[%d] = %07o\n", i, reg[i]);
 }
 
-/*void do_halt()//??
-{
-    printf("THE END\n");
-    exir(0);
-}
-
-void do_add()
-{
-    write(dd.a) =ss.val + dd.val;
-}
-
-void do_move()
-{
-        write(dd.a) = ss.val;
-
-}
-
-void do_unknown() {}
-*/
 
 struct VAL_ADR get_mode(word w)
 {
@@ -149,48 +167,53 @@ struct VAL_ADR get_mode(word w)
         case 0:      //регистр содержит искомое значение
             res.a = nn;
             res.val = reg[nn];
-            printf("reg[%d]", nn);
+            printf("R%d ", nn);
             break;
         case 1:            //регистр содержит адрес ячейки памяти, где лежит значение
             res.a = reg[nn];
             if(b)
             {
                 res.val = b_read(res.a);
-                printf("reg[%d], b", nn);
+                printf("(R%d) ", nn);
             }
             else
             {
                 res.val = w_read(res.a);
-                printf("reg[%d], w", nn);
+                printf("(R%d) ", nn);
             }
             break;
         case 2:          //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
             res.a = reg[nn];
-            if(b && nn < 6)
+            if(b && (reg[nn] < 6))
             {
                 res.val = b_read(res.a);
                 reg[nn]++;
-                printf("reg[%d], b", nn);
+                //printf("(R%d)+ ", nn);
             }
             else
             {
                 res.val = w_read(res.a);
                 reg[nn]+=2;
-                printf("reg[%d], w", nn);
             }
+            if (nn != 7)
+                printf("(R%d)+ ", nn);
+            else
+                printf("#%o ",res.val);
             break;
         case 3:              //регистр содержит адрес ячейки памяти, где лежит значение, значение регистра увелич.
             res.a = w_read(reg[nn]);
             if(b)
             {
                 res.val = b_read(res.a);
-                printf("reg[%d], b", nn);
             }
             else
             {
                 res.val = w_read(res.a);
-                printf("reg[%d], w", nn);
             }
+            if (nn != 7)
+                printf("@(R%d)+ ", nn);
+            else
+                printf("#%o ",res.val);
             reg[nn]+=2;
             break;
         case 4:           //уменьшаем значение регистра, интерпретируем его как адрес и находим значение
@@ -199,15 +222,14 @@ struct VAL_ADR get_mode(word w)
                 reg[nn]--;
                 res.a = reg[nn];
                 res.val = b_read(res.a);
-                printf("reg[%d], b", nn);
             }
             else
             {
                 reg[nn]-=2;
                 res.a = reg[nn];
                 res.val = w_read(res.a);
-                printf("reg[%d], w", nn);
             }
+            printf("-(R%d) ", nn);
             break;
         case 5:           //уменьшает значение регистра на 2, который содержит адрес ячейки памяти, где лежит значение, значение регистра увелич
             reg[nn]-=2;
@@ -215,34 +237,51 @@ struct VAL_ADR get_mode(word w)
             if(b && nn < 6)
             {
                 res.val = b_read(res.a);
-                printf("reg[%d], b", nn);
             }
             else
             {
                 res.val = w_read(res.a);
-                printf("reg[%d], w", nn);
             }
+            printf("@-(R%d) ", nn);
             break;
     }
-
+    //printf("qwert");
+    return res;
 }
-/*void run()
+
+void run()
 {
-    word pc = 0100;
+    printf("\nRunning\n");
+    pc = 01000;//512//0x200
     while(1)
     {
-        word w = w_read(pc);
-        fprintf(stdout, "%06o: %06o ", pc, w);
+        word w = w_read(pc);// & 0xffff;// исправитть
+        b = (w>>15);
+        printf("mem[%d] : %07o: %07o ",pc, pc, w);
         pc+=2;
-        for(int i = 0; i < ; i++
+        int i;
+        for(i = 0; i < sizeof(cmds)/sizeof(cmds[0]); i++)
         {
-            cmd = command[i];
-            if (())
-        })
+            if((w & cmds[i].mask) == cmds[i].opcode)
+            {
+                printf("%s ", cmds[i].name);
+                if(cmds[i].param & HAS_SS)
+                    ss = get_mode(w>>6);
+                if(cmds[i].param & HAS_DD)
+                    dd = get_mode(w);
+
+                cmds[i].do_func();
+                //reg_print();
+                break;
+            }
+        }
+        printf("\n");
     }
+    print_reg();
 }
 
-void trace(int debug_level, const char * format. ...) {
+
+/*void trace(int debug_level, нетconst char * format. ...) {
 if (debug_lvl ....)
 return 	;
 va_list ap;
